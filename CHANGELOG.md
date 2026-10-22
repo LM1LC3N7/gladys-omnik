@@ -12,44 +12,35 @@ the notes of the version's GitHub Release.
 
 ### Added
 
-- A working example of scene triggers, scene actions and dashboard widgets
-  (Gladys 5.1.0 or later).
-- `CHANGELOG.md`, rolled by the Release workflow.
-- A GitHub Release for every version, with its changelog section as notes: the
-  Gladys Supervision page links each version to the repository's releases.
-- CI runs the tests on Node 22 and 24, and builds the Docker image.
-- Dependabot keeps the npm dependencies and the GitHub Actions up to date.
-- `SECURITY.md` (how to report a vulnerability) and `CLAUDE.md` (project rules
-  for contributors and coding assistants).
-- Manifest tests: `version` matches `package.json`, `docker_image` is tagged
-  with it, descriptions hold 10 to 100 characters, placeholders are
-  multi-language objects.
-- The latitude and longitude fields show an example value as placeholder.
+- Local reading of Omnik solar inverters through their Wi-Fi logger, as the
+  omnikinverter library does, from four sources: `js` (`/js/status.js`, the
+  default), `json` (`/status.json`), `html` (`/status.html`, with the
+  logger's user name and password) and `tcp` (port 8899, with the logger's
+  serial number). No cloud, no account, one request a minute (every 5
+  minutes at night), never faster whatever asks (reconnection, save, test
+  button, Discover tab, restart: the time of the last read is kept in
+  `/data`).
+- One device per inverter (`inverter:<serial>`; a fingerprint of the logger
+  or of the address when the answer has no serial): solar power, energy of
+  the day, inverter awake, temperature (tcp source).
+- A solar production index for the Gladys energy monitoring, built from the
+  counter of the day with the mechanism of gladys-zeversolar 0.1.4 (the
+  inverter asleep at night, the counter of the day before shown again kept
+  out, small days, a drop never accepted, a margin from the peak power typed
+  or learned) and checked by the guard of gladys-p1-monitor: never 0, a jump
+  taken only by the "Accept the held index" button; its 30-minute production
+  declared with stable ids.
+- The night: three silent reads (or a logger answering without inverter) and
+  the inverter is asleep: power 0, green status, no index; red only for an
+  inverter that vanishes while producing, another logger at the address, a
+  wrong answer, or a day of silence.
+- A user name or password refused by the logger (401/403) stops the reads
+  for good, kept in `/data` (a salted fingerprint of the refused set only):
+  never an automatic new try; other credentials or a success of the test
+  button lift it.
+- 429 and 5xx: a bounded pause (1 min to 6 h) kept in `/data`. Answers bounded
+  (32 KiB web, 1 KiB tcp, 10 s), no redirect followed, every field checked,
+  linear parsing.
+- Guides in English and French, cover image, third-party notices in the image.
 
-### Changed
-
-- Node.js 22 or later is required (Node 20 is end-of-life).
-- Integration SDK 0.15.0. The tests now run against the fake Gladys of the
-  SDK, which refuses the payloads Gladys refuses.
-- The refresh interval is one minute minimum, the fastest Gladys polls a
-  device. The plug's power is only sent when it changes, and every 30
-  minutes otherwise.
-
-### Fixed
-
-- Gladys refused the devices of the Discovery tab: the weather station and
-  the plug declared their poll frequency in seconds instead of one of the
-  values Gladys accepts, and were never polled. They now poll every minute,
-  and the readings follow the refresh interval of the configuration.
-
-- The release commit no longer fails `npm run format:check`: the Release
-  workflow updates the manifest `version` and `docker_image` in place instead
-  of re-printing the whole file with `jq`.
-- The integration can write to `/data`: the image creates the directory owned
-  by the `node` user, a new Docker volume was owned by root.
-- A sub-container running the integration's own image follows it to the new
-  tag at each release, as well as in the manifest of the build summary: it kept
-  the previous tag, which may not exist on the registry. Sub-containers on a
-  third-party image (a broker, a database...) keep theirs.
-
-[Unreleased]: https://github.com/GladysAssistant/integration-template-js/commits/main
+[Unreleased]: https://github.com/LM1LC3N7/gladys-omnik/commits/main

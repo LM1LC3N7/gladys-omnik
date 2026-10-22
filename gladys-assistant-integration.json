@@ -1,177 +1,147 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Omnik",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Unofficial: Omnik solar inverters on your network: power, energy of the day, energy index.",
+    "fr": "Non officiel : onduleurs solaires Omnik en local : puissance, énergie du jour, index d'énergie."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
-  "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-omnik:0.1.0",
+  "gladys_version": ">=5.2.0",
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-omnik/main/cover.png",
+  "categories": ["energy"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": { "en": "Omnik inverter", "fr": "Onduleur Omnik" },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Unofficial connector, not affiliated with Omnik. It reads the Wi-Fi logger of your Omnik inverter on your network, without any cloud, once a minute: solar power, energy of the day, temperature (tcp source), and a solar production index for the Gladys energy monitoring, built from the counter of the day. At night the inverter sleeps: the power goes to 0, the index waits for the morning. Read-only: it never sends a command to the inverter. Never tested with a real Omnik inverter.",
+        "fr": "Connecteur non officiel, sans lien avec Omnik. Il lit l'enregistreur Wi-Fi de votre onduleur Omnik sur votre réseau, sans cloud, une fois par minute : puissance solaire, énergie du jour, température (source tcp), et un index de production solaire pour le suivi énergétique de Gladys, construit à partir du compteur du jour. La nuit l'onduleur dort : la puissance passe à 0, l'index attend le matin. Lecture seule : il n'envoie jamais de commande à l'onduleur. Jamais testé avec un vrai onduleur Omnik."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/LM1LC3N7/gladys-omnik/blob/main/docs/fr.md",
+          "label": { "en": "Guide (French)", "fr": "Guide (français)" }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-omnik/blob/main/docs/en.md",
+          "label": { "en": "Guide (English)", "fr": "Guide (anglais)" }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "key": "address",
+      "type": "string",
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "label": { "en": "Logger address", "fr": "Adresse de l'enregistreur" },
+      "description": {
+        "en": "The IP address of the inverter's Wi-Fi logger on your network (shown by your router), with a port only if it is not the usual one (80, or 8899 for the tcp source). Enter it by day: at night the inverter sleeps and does not answer. Preferably give it a fixed address in your router.",
+        "fr": "L'adresse IP de l'enregistreur Wi-Fi de l'onduleur sur votre réseau (visible dans votre box), avec un port seulement s'il n'est pas l'habituel (80, ou 8899 pour la source tcp). Saisissez-la de jour : la nuit l'onduleur dort et ne répond pas. Donnez-lui de préférence une adresse fixe dans votre box."
+      },
+      "placeholder": { "en": "e.g. 192.168.1.70", "fr": "ex. 192.168.1.70" }
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
+      "key": "source",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
+      "required": true,
+      "default": "js",
+      "label": { "en": "Source", "fr": "Source" },
+      "description": {
+        "en": "How the logger is read; it depends on its firmware. js (/js/status.js) suits most loggers; json (/status.json) and html (/status.html, which needs the user name and password) suit others; tcp (port 8899) needs the logger's serial number and also gives the temperature. If the status says it is not the right answer, try another one.",
+        "fr": "Comment l'enregistreur est lu ; cela dépend de son firmware. js (/js/status.js) convient à la plupart ; json (/status.json) et html (/status.html, qui demande le nom d'utilisateur et le mot de passe) à d'autres ; tcp (port 8899) demande le numéro de série de l'enregistreur et donne aussi la température. Si l'état dit que ce n'est pas la bonne réponse, essayez-en une autre."
+      },
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        { "value": "js", "label": { "en": "js (most loggers)", "fr": "js (la plupart)" } },
+        { "value": "json", "label": { "en": "json", "fr": "json" } },
+        {
+          "value": "html",
+          "label": { "en": "html (user name and password)", "fr": "html (identifiants)" }
+        },
+        {
+          "value": "tcp",
+          "label": { "en": "tcp (logger serial number)", "fr": "tcp (numéro de série)" }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
-      "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
+      "key": "username",
+      "type": "string",
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "label": {
+        "en": "Logger user name (web sources)",
+        "fr": "Nom d'utilisateur de l'enregistreur (sources web)"
+      },
+      "description": {
+        "en": "The user name of the logger's own web page (often admin). Required by the html source; sent to the js and json sources when given. Leave empty for tcp.",
+        "fr": "Le nom d'utilisateur de la page web de l'enregistreur (souvent admin). Requis par la source html ; envoyé aux sources js et json s'il est saisi. Laissez vide pour tcp."
+      },
+      "placeholder": { "en": "e.g. admin", "fr": "ex. admin" }
+    },
+    {
+      "key": "password",
+      "type": "secret",
+      "required": false,
+      "label": {
+        "en": "Logger password (web sources)",
+        "fr": "Mot de passe de l'enregistreur (sources web)"
+      },
+      "description": {
+        "en": "The password of the logger's own web page. Kept by Gladys in its database, never shown again, sent only to the logger, in Basic auth over plain HTTP on your network (the logger has no HTTPS). If it is refused, no automatic read is made until you change it.",
+        "fr": "Le mot de passe de la page web de l'enregistreur. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement à l'enregistreur, en Basic auth sur du HTTP simple dans votre réseau (l'enregistreur n'a pas de HTTPS). S'il est refusé, aucune lecture automatique n'est faite tant que vous ne le changez pas."
+      }
+    },
+    {
+      "key": "logger_serial",
+      "type": "string",
+      "required": false,
+      "label": {
+        "en": "Logger serial number (tcp source)",
+        "fr": "Numéro de série de l'enregistreur (source tcp)"
+      },
+      "description": {
+        "en": "Only for the tcp source: the serial number of the Wi-Fi logger, digits only (on its label or in its web page, often starting with 6). Not the serial of the inverter.",
+        "fr": "Seulement pour la source tcp : le numéro de série de l'enregistreur Wi-Fi, chiffres seulement (sur son étiquette ou dans sa page web, commence souvent par 6). Pas le numéro de série de l'onduleur."
+      },
+      "placeholder": { "en": "e.g. 602123456", "fr": "ex. 602123456" }
+    },
+    {
+      "key": "peak_power_kw",
+      "type": "number",
+      "required": false,
+      "min": 0.1,
+      "max": 100,
+      "label": {
+        "en": "Peak power of the installation (kWp, optional)",
+        "fr": "Puissance crête de l'installation (kWc, facultatif)"
+      },
+      "description": {
+        "en": "The peak power of your panels (on the installer's invoice). It bounds what the energy index may take between two reads (an odd reading is held back instead). Empty: learned from the power the inverter reaches over a week (30 kW until then). Never enter less than the real peak power: in doubt, leave it empty.",
+        "fr": "La puissance crête de vos panneaux (sur la facture de l'installateur). Elle borne ce que l'index d'énergie peut prendre entre deux lectures (une lecture aberrante est retenue). Vide : apprise depuis la puissance atteinte par l'onduleur sur une semaine (30 kW d'ici là). Ne saisissez jamais moins que la vraie puissance crête : dans le doute, laissez vide."
+      },
+      "placeholder": { "en": "e.g. 3", "fr": "ex. 3" }
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
+      "key": "test_connection",
+      "timeout_seconds": 30,
+      "label": { "en": "Test the connection", "fr": "Tester la connexion" },
+      "description": {
+        "en": "Reads the logger if a read is due, otherwise tells the last read (never more than one read a minute). After a refused password, the only way to try the same one again.",
+        "fr": "Lit l'enregistreur si une lecture est due, sinon donne la dernière lecture (jamais plus d'une lecture par minute). Après un mot de passe refusé, le seul moyen de réessayer le même."
+      }
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "accept_held_index",
+      "timeout_seconds": 30,
+      "label": { "en": "Accept the held index", "fr": "Accepter l'index retenu" },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+        "en": "Only when the status shows a jump of the energy index held back and this energy was real: takes exactly the value shown, counted at once. A drop is never accepted (the index corrects itself). Saving the configuration never accepts anything.",
+        "fr": "Seulement quand l'état affiche un saut de l'index d'énergie retenu et que cette énergie est réelle : prend exactement la valeur affichée, comptée d'un coup. Une baisse n'est jamais acceptée (l'index se corrige seul). Enregistrer la configuration n'accepte jamais rien."
+      }
     }
   ]
 }
