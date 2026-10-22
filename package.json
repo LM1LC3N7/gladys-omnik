@@ -1,6 +1,6 @@
 {
   "name": "gladys-omnik",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Omnik solar inverters for Gladys Assistant: power, energy of the day, temperature and a guarded production index read from the local Wi-Fi logger of the inverter. Read-only.",
   "type": "module",

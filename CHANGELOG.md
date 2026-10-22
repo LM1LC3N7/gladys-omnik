@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-22
+
 ### Added
 
 - Local reading of Omnik solar inverters through their Wi-Fi logger, as the
@@ -51,4 +53,5 @@ the notes of the version's GitHub Release.
   linear parsing.
 - Guides in English and French, cover image, third-party notices in the image.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-omnik/commits/main
+[Unreleased]: https://github.com/LM1LC3N7/gladys-omnik/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-omnik/releases/tag/v0.1.1
