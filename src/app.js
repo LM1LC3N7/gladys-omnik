@@ -248,18 +248,11 @@ const addressId = (address) =>
  *    (html `cover_mid`, the logger serial of a tcp reply);
  * 4. else `host-<fingerprint>` of the address typed (a json answer without
  *    `i_sn`): a new address is then a new device.
- * 0. Before all (review 1, I1): a fallback id whose device the user created
- *    (`keepFallback`) stays the id while the logger (`logger-`) or the
- *    address (`host-`) is the same, even once a serial appears: never a
- *    second device for the same inverter.
+ * 0. Before all (review 1 I1, approval 1 R1): see `fallbackHere` in the app,
+ *    a created fallback device of THIS logger or address keeps the answers
+ *    without serial and the ones with the serial first seen with it.
  */
-export function identityOf(reading, known, address, keepFallback = false) {
-  if (keepFallback && known && FALLBACK_ID.test(known)) {
-    const same = known.startsWith('logger-')
-      ? Boolean(reading.board) && known === `logger-${reading.board}`
-      : known === addressId(address);
-    if (same) return known;
-  }
+export function identityOf(reading, known, address) {
   if (reading.serial) {
     return reading.serial;
   }
@@ -269,16 +262,36 @@ export function identityOf(reading, known, address, keepFallback = false) {
   return reading.board ? `logger-${reading.board}` : addressId(address);
 }
 
-const SIGNATURE = /^[A-Za-z0-9._()+:-]{1,48}\|\d{1,9}$/;
+const SIGNATURE = /^\d{1,9}$/;
+/** At most this many fallback ids with a learned serial kept in /data. */
+const MAX_LEARNED = 8;
 
 /**
  * What tells one inverter from another without a serial (the json source
- * without `i_sn`, review 1 M1): its model and rated power, when both are given.
+ * without `i_sn`, review 1 M1): its rated power only, 0 being "not given"
+ * (approval 1, R2: a model renamed by a firmware, or a rated power at 0 for a
+ * moment, is never another inverter).
  */
 export function signatureOf(reading) {
-  return reading.model && Number.isInteger(reading.rated)
-    ? `${reading.model}|${reading.rated}`
-    : undefined;
+  return Number.isInteger(reading.rated) && reading.rated > 0 ? String(reading.rated) : undefined;
+}
+
+/** The serials learned with created fallback devices, from /data: `{ 'host-…': serial }`. */
+function validLearned(learned) {
+  if (!learned || typeof learned !== 'object' || Array.isArray(learned)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(learned)
+      .filter(
+        ([key, value]) =>
+          key !== '__proto__' &&
+          FALLBACK_ID.test(key) &&
+          typeof value === 'string' &&
+          SERIAL.test(value),
+      )
+      .slice(-MAX_LEARNED),
+  );
 }
 
 /** A refusal of the credentials read back from /data: `{ fp }` (a salted fingerprint), else undefined. */
@@ -394,6 +407,11 @@ export class OmnikApp {
               : {}),
           }
         : undefined;
+    /**
+     * By fallback id whose device is created: the serial first seen with it
+     * (approval 1, R1), the only one that still goes to that device.
+     */
+    this.learnedSerials = validLearned(kept.learned);
     /** The daily power peaks, for the margin of the index (I3). */
     this.peaks = validPeaks(kept.peaks);
     /** By index feature external id: the marks of the day before (B1, I1). */
@@ -667,10 +685,12 @@ export class OmnikApp {
         return;
       }
     }
-    // The identity of this read: the serial in the same answer as its values.
+    // The identity of this read: the serial in the same answer as its values,
+    // or the created fallback device of this logger or address (R1).
+    const here = reading.kind === 'reading' ? this.fallbackHere(reading) : undefined;
     const serial =
       reading.kind === 'reading'
-        ? identityOf(reading, this.info?.serial, this.config.address, Boolean(this.createdDevice()))
+        ? (here?.id ?? identityOf(reading, this.info?.serial, this.config.address))
         : undefined;
     if (reading.kind === 'reading' && serial === undefined) {
       // A serial unreadable once is never "another inverter": nothing written.
@@ -686,9 +706,10 @@ export class OmnikApp {
       return;
     }
     this.serialMissingSince = undefined;
-    // The json source without serial (`host-` id): the model and rated power
-    // told by the answer must stay the same (review 1, M1); another inverter
-    // behind the address (a DHCP swap) is red and writes nothing.
+    // The json source without serial (`host-` id): the rated power told by
+    // the answer must stay the same (review 1 M1, approval 1 R2: the rated
+    // power only, 0 is not given); another inverter behind the address (a
+    // DHCP swap) is red and writes nothing. The test button relearns it.
     const signature = reading.kind === 'reading' ? signatureOf(reading) : undefined;
     if (
       serial?.startsWith('host-') &&
@@ -699,6 +720,13 @@ export class OmnikApp {
     ) {
       await this.failed(new OmnikError('other_model'), mono, gone);
       return;
+    }
+    if (here?.learn) {
+      // The serial first seen with the created fallback device: the only one
+      // that goes to it from now on (R1), kept in /data (saved below).
+      this.learnedSerials = Object.fromEntries(
+        Object.entries({ ...this.learnedSerials, [here.id]: here.learn }).slice(-MAX_LEARNED),
+      );
     }
     this.failures = 0;
     this.nextTryAt = undefined;
@@ -923,6 +951,7 @@ export class OmnikApp {
       serial: this.info?.serial ?? null,
       board: this.info?.board ?? null,
       signature: this.info?.signature ?? null,
+      learned: this.learnedSerials,
       peaks: this.peaks,
       pause: this.pause ?? null,
       // Only a refused set's salted fingerprint, never a working one's.
@@ -945,6 +974,30 @@ export class OmnikApp {
   }
 
   // --- Devices -----------------------------------------------------------------------
+
+  /**
+   * The created fallback device of THIS logger (`logger-`, from the answer)
+   * or address (`host-`), looked up in `gladys.devices` (never "the last
+   * identity", which a DHCP swap changes): `{ id, learn? }` when the reading
+   * goes to it, i.e. it has no serial, or the serial first seen with that
+   * device (learned then: `learn`); else undefined, and any other serial is
+   * another inverter, its own device (approval 1, R1). Left, documented: an
+   * inverter with a serial that answers at the address BEFORE the inverter
+   * of the device ever gave one is learned in its place (a fixed address is
+   * required for the json source without serial).
+   */
+  fallbackHere(reading) {
+    const id = reading.board ? `logger-${reading.board}` : addressId(this.config.address);
+    const device = ids(this.gladys, id).device;
+    if (!(this.gladys.devices ?? []).some((d) => d.external_id === device)) {
+      return undefined;
+    }
+    const learned = this.learnedSerials[id];
+    if (!reading.serial || reading.serial === learned) {
+      return { id };
+    }
+    return learned ? undefined : { id, learn: reading.serial };
+  }
 
   external() {
     return this.info ? ids(this.gladys, this.info.serial) : undefined;
@@ -1221,6 +1274,17 @@ export class OmnikApp {
     }
     if (this.pause && this.now() < this.pause.until) {
       return this.currentStatus()[1];
+    }
+    if (this.lastError?.code === 'other_model' && this.info?.signature) {
+      // The gesture to relearn the rated power (approval 1, R2): the inverter
+      // behind the address was replaced on purpose. Taken at the next read.
+      this.info = { ...this.info };
+      delete this.info.signature;
+      this.logger.info('Omnik: the rated power of the inverter will be learned again');
+      await this.saveState();
+      if (this.busy || this.dueAt() > this.monotonic()) {
+        return T.test.relearn(Math.max(0, this.dueAt() - this.monotonic()));
+      }
     }
     const refused = this.refusedNow();
     if (this.busy || this.dueAt() > this.monotonic()) {

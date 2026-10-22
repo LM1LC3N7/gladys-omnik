@@ -90,12 +90,20 @@
   logger's id: html `cover_mid`, the tcp reply's logger serial); else
   `inverter:host-<12 hex>` (a fingerprint of the address: the json source
   without `i_sn`; a new address is then a new device, a fixed address
-  required, documented; review 1, M1: the model and rated power `i_modle |
-i_pow` are kept in `/data` as `signature`, an answer with others is red
-  `other_model` and writes nothing). Review 1, I1: a fallback id whose device
-  is created stays the id while the logger (`logger-`) or the address
-  (`host-`) is the same, even once a serial appears (a firmware update, a
-  first partial answer): never a second device, the rule is fixed. The serial
+  required, documented; review 1 M1 and approval 1 R2: the rated power
+  `i_pow` alone, 0 being "not given", is kept in `/data` as `signature` (a
+  model renamed by a firmware, or a 0 at the first read or each morning,
+  never blocks), an answer with another one is red `other_model` and writes
+  nothing; the test button after `other_model` relearns it at the next read,
+  for an inverter replaced on purpose). Review 1 I1 and approval 1 R1
+  (`fallbackHere` in src/app.js): the created fallback device of THIS logger
+  or address, looked up in `gladys.devices`, keeps the answers without
+  serial and the ones with the serial first seen with it (learned, kept in
+  `/data` as `learned`, 8 at most); any other serial is another inverter (a
+  DHCP swap), its own device. Left, documented: an inverter with a serial
+  answering at the address BEFORE the device's own inverter ever gave one is
+  learned in its place (indistinguishable without a serial; covered by "a
+  fixed address is required"). The serial
   is in the same answer as the values: a DHCP swap or another inverter at the
   address never writes into the old device. The id is kept in `/data` so
   that the created device is offered at a restart by night.

@@ -5,6 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import { OmnikApp } from '../src/app.js';
 import {
@@ -684,24 +685,94 @@ test('identity (I1): a fallback id whose device is created stays when a serial a
   }
 });
 
-test('identity (M1): a host- id refuses another model or rated power behind the address', async () => {
+/** The `host-` id of ADDRESS (a fingerprint of the address). */
+const HOST = `host-${createHash('sha256').update(`omnik-host:${ADDRESS}`).digest('hex').slice(0, 12)}`;
+const JSON_CONFIG = { address: ADDRESS, source: 'json' };
+
+test('identity (M1, R2): a host- id refuses another rated power, a renamed model is fine', async () => {
+  const store = createMemoryStore();
+  const inverter = createInverter();
+  inverter.answer = () => jsonAnswer({ today: 3.1 });
+  const { gladys, start, wait, app } = await setup({
+    inverter,
+    store,
+    config: JSON_CONFIG,
+    devices: [created({ serial: HOST, index: { value: 1000, at: NOW - MINUTE } })],
+  });
+  await start();
+  assert.equal(store.data.signature, '2000');
+  // A firmware renames the model, same rated power: never red (R2, S3).
+  inverter.answer = () => jsonAnswer({ model: 'Omnik2000TL2', today: 3.2 });
+  await wait(POLL_INTERVAL);
+  assert.equal(status(gladys).connected, true);
+  assert.equal(last(gladys, 'production_index', HOST), 1000.1);
+  // Another rated power: red, nothing written.
+  inverter.answer = () => jsonAnswer({ model: 'omnik4000tl2', rated: '4000', today: 9 });
+  await wait(POLL_INTERVAL);
+  assert.equal(status(gladys).connected, false);
+  assert.match(status(gladys).message.fr, /autre puissance nominale/);
+  assert.equal(last(gladys, 'production_index', HOST), 1000.1);
+  // The gesture to relearn it (replaced on purpose): the test button.
+  const answer = await app.testConnection();
+  assert.match(answer.fr, /réapprise à la prochaine lecture/);
+  await wait(2 * POLL_INTERVAL);
+  assert.equal(status(gladys).connected, true);
+  assert.equal(store.data.signature, '4000');
+});
+
+test('identity (R2): a rated power at 0 is "not given", first read or each morning', async () => {
+  // S2: the very first read gives 0; S1: 0 for a while each morning.
+  const inverter = createInverter();
+  let rated = '0';
+  let today = 3.1;
+  inverter.answer = () => jsonAnswer({ rated, today });
+  const { gladys, start, wait, store } = await setup({
+    inverter,
+    config: JSON_CONFIG,
+    devices: [created({ serial: HOST, index: { value: 1000, at: NOW - MINUTE } })],
+  });
+  await start();
+  assert.equal(store.data.signature, null, 'nothing learned from a 0');
+  rated = '2000';
+  today = 3.2;
+  await wait(POLL_INTERVAL);
+  assert.equal(store.data.signature, '2000');
+  rated = '0';
+  today = 3.3;
+  await wait(POLL_INTERVAL);
+  assert.equal(status(gladys).connected, true);
+  assert.equal(last(gladys, 'production_index', HOST), 1000.2);
+});
+
+test('identity (R1): after a serial is learned, another serial at the address is its own device', async () => {
   const store = createMemoryStore();
   const inverter = createInverter();
   inverter.answer = () => jsonAnswer({ today: 3.1 });
   const { gladys, start, wait } = await setup({
     inverter,
     store,
-    config: { address: ADDRESS, source: 'json' },
+    config: JSON_CONFIG,
+    devices: [created({ serial: HOST, index: { value: 1000, at: NOW - MINUTE } })],
   });
   await start();
-  assert.equal(store.data.signature, 'omnik2000tl2|2000');
-  inverter.answer = () => jsonAnswer({ model: 'omnik4000tl2', rated: '4000', today: 9 });
+  // A firmware gives the serial: learned with the created device, values kept there.
+  inverter.answer = () => jsonAnswer({ sn: SERIAL, today: 3.2 });
   await wait(POLL_INTERVAL);
-  assert.equal(status(gladys).connected, false);
-  assert.match(status(gladys).message.fr, /autre modèle/);
-  inverter.answer = () => jsonAnswer({ today: 3.2 });
-  await wait(2 * POLL_INTERVAL);
-  assert.equal(status(gladys).connected, true);
+  assert.deepEqual(store.data.learned, { [HOST]: SERIAL });
+  assert.equal(last(gladys, 'production_index', HOST), 1000.1);
+  // A DHCP swap: another inverter (same rated power) with its own serial.
+  inverter.answer = () => jsonAnswer({ sn: 'NLDN9999999999', power: 50, today: 9 });
+  await wait(POLL_INTERVAL);
+  assert.equal(last(gladys, 'production_index', HOST), 1000.1, 'never written into A');
+  assert.equal(last(gladys, 'power', HOST), 900);
+  assert.ok(gladys.fake.discoveredDevices.some((d) => d.external_id.endsWith('NLDN9999999999')));
+  // A back, with its serial or without: its device again.
+  inverter.answer = () => jsonAnswer({ sn: SERIAL, today: 3.3 });
+  await wait(POLL_INTERVAL);
+  assert.equal(last(gladys, 'production_index', HOST), 1000.2);
+  inverter.answer = () => jsonAnswer({ today: 3.4 });
+  await wait(POLL_INTERVAL);
+  assert.equal(last(gladys, 'production_index', HOST), 1000.3);
 });
 
 test('the night (I3): a serial with empty values, or 4294967295, is asleep', async () => {

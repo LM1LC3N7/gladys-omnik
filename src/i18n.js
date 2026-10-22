@@ -38,8 +38,8 @@ const REASON = {
     fr: 'la réponse n’a pas de numéro de série lisible, valeurs non écrites',
   },
   other_model: {
-    en: 'the answer gives another model or rated power than the device, values not written (another inverter at this address?)',
-    fr: 'la réponse donne un autre modèle ou une autre puissance nominale que l’appareil, valeurs non écrites (un autre onduleur à cette adresse ?)',
+    en: 'the answer gives another rated power than the device, values not written (another inverter at this address? if it was replaced on purpose, click "Test the connection" to learn the new one)',
+    fr: 'la réponse donne une autre puissance nominale que l’appareil, valeurs non écrites (un autre onduleur à cette adresse ? s’il a été remplacé exprès, cliquez sur « Tester la connexion » pour apprendre la nouvelle)',
   },
   no_inverter: {
     en: 'the Wi-Fi logger answers without its inverter, right after it produced',
@@ -225,6 +225,11 @@ export const T = {
     refusedWait: (next) => ({
       en: `The logger refused the user name or the password: this button can try again in ${delay(next).en} (never more than one read a minute).`,
       fr: `L’enregistreur a refusé le nom d’utilisateur ou le mot de passe : ce bouton pourra réessayer dans ${delay(next).fr} (jamais plus d’une lecture par minute).`,
+    }),
+    /** The rated power will be learned again at the next read (approval 1, R2). */
+    relearn: (next) => ({
+      en: `The rated power of the inverter will be learned again at the next read, in ${delay(next).en}.`,
+      fr: `La puissance nominale de l’onduleur sera réapprise à la prochaine lecture, dans ${delay(next).fr}.`,
     }),
     notYet: (next) => ({
       en: `No read yet with this configuration: the first one comes in ${delay(next).en} (never more than one a minute).`,

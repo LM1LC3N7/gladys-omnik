@@ -36,14 +36,18 @@ compteur total de l'onduleur n'est pas publié (voir « L'index d'énergie »).
      de numéro de série. L'appareil est alors nommé d'après une empreinte de
      l'adresse : une **adresse fixe dans votre box est obligatoire** (une
      nouvelle adresse fait un nouvel appareil, et changer de source peut en
-     faire un aussi). Le modèle et la puissance nominale de la réponse sont
-     gardés : une réponse qui en donne d'autres (un autre onduleur derrière
-     l'adresse) passe l'état au rouge et n'écrit rien. Préférez js s'il
-     fonctionne ;
+     faire un aussi). La puissance nominale de la réponse est gardée (0 vaut
+     « non donnée ») : une réponse qui en donne une autre (un autre onduleur
+     derrière l'adresse) passe l'état au rouge et n'écrit rien ; si vous avez
+     remplacé l'onduleur exprès, cliquez sur « Tester la connexion » pour
+     apprendre la nouvelle. Préférez js s'il fonctionne ;
    - un appareil créé sous une telle empreinte (ou sous celle de
      l'enregistreur, html et tcp sans numéro de série) la garde, même si un
-     numéro de série apparaît plus tard (mise à jour du firmware) : jamais de
-     second appareil ;
+     numéro de série apparaît plus tard (mise à jour du firmware) : le premier
+     numéro vu avec lui est appris et continue d'y aller ; tout autre numéro
+     est un autre onduleur, sur son propre appareil. Reste : un autre onduleur
+     avec numéro de série qui répondrait à l'adresse avant que le vôtre en ait
+     jamais donné un serait appris à sa place ; d'où l'adresse fixe ;
    - **html** : la page `/status.html`, qui demande toujours le nom
      d'utilisateur et le mot de passe de la page web de l'enregistreur
      (souvent admin) ;

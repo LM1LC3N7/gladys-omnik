@@ -22,11 +22,13 @@ the notes of the version's GitHub Release.
   `/data`).
 - One device per inverter (`inverter:<serial>`; a fingerprint of the logger
   or of the address when the answer has no serial, kept once its device is
-  created even if a serial appears later): solar power, energy of the day,
+  created even if a serial appears later, with the first serial seen; any
+  other serial goes to its own device): solar power, energy of the day,
   inverter awake, inverter temperature (tcp source, as a device temperature,
   never the room's). Without a serial (json), a fixed address is required and
-  an answer with another model or rated power is refused; an answer missing
-  its serial now and then is ignored, red only after an hour.
+  an answer with another rated power is refused (the test button learns a
+  new one); an answer missing its serial now and then is ignored, red only
+  after an hour.
 - The night also when the logger answers with its serial but without power
   nor counter of the day (empty, or its "no value" 4294967295).
 - A solar production index for the Gladys energy monitoring, built from the

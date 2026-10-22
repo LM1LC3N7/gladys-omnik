@@ -33,12 +33,18 @@ lifetime counter of the inverter is not published (see "The energy index").
    - **json**: the page `/status.json`; some loggers give no serial number in
      it. The device is then named after a fingerprint of the address, so a
      **fixed address in your router is required**: a new address makes a new
-     device, and changing the source may too. The model and rated power of
-     the answer are kept: an answer with others (another inverter behind the
-     address) turns the status red and writes nothing. Prefer js if it works;
+     device, and changing the source may too. The rated power of the answer
+     is kept (0 counts as not given): an answer with another one (another
+     inverter behind the address) turns the status red and writes nothing; if
+     you replaced the inverter on purpose, click "Test the connection" to
+     learn the new one. Prefer js if it works;
    - a device created under such a fingerprint (or under the logger's, html
      and tcp without serial) keeps it, even when a serial number appears
-     later (a firmware update): never a second device;
+     later (a firmware update): the first serial seen with it is learned and
+     goes on to it; any other serial is another inverter, its own device.
+     Left: another inverter with a serial that answers at the address before
+     yours ever gave one would be learned in its place; hence the fixed
+     address;
    - **html**: the page `/status.html`, which always needs the user name and
      password of the logger's web page (often admin);
    - **tcp**: port 8899, which needs the serial number of the Wi-Fi logger
