@@ -605,7 +605,7 @@ test('identity: a json answer without serial gets a stable fallback id', async (
   assert.equal(inverter.net.calls[0].path, '/status.json');
 });
 
-test('identity: a serial unreadable once is never "another inverter"', async () => {
+test('identity (M2): a serial missing now and then is ignored, never red nor a longer wait', async () => {
   const inverter = createInverter();
   const { gladys, start, wait } = await setup({ inverter, devices: [created()] });
   inverter.set({ power: 1000, energy: 2 });
@@ -613,11 +613,132 @@ test('identity: a serial unreadable once is never "another inverter"', async () 
   const discovered = gladys.fake.discoveredDevices.length;
   inverter.set({ serial: '<bad>', power: 30, energy: 9 });
   await wait(POLL_INTERVAL);
-  assert.equal(status(gladys).connected, false);
-  assert.match(status(gladys).message.fr, /pas de numéro de série lisible/);
+  assert.equal(status(gladys).connected, true, 'not red');
+  assert.match(status(gladys).message.fr, /pas de numéro de série : ignorée/);
   assert.equal(last(gladys, 'power'), 1000, 'nothing written');
   assert.ok(gladys.fake.discoveredDevices.slice(discovered).every((d) => d.external_id === DEVICE));
+  const before = reads(inverter);
+  await wait(POLL_INTERVAL);
+  assert.equal(reads(inverter), before + 1, 'the wait is not doubled');
   inverter.set({ power: 1100, energy: 2.1 });
-  await wait(2 * POLL_INTERVAL);
+  await wait(POLL_INTERVAL);
   assert.equal(last(gladys, 'power'), 1100);
+  assert.doesNotMatch(status(gladys).message.fr, /ignorée/);
+  // Missing for an hour: red.
+  inverter.set({ serial: '<bad>', power: 30, energy: 9 });
+  await wait(HOUR + POLL_INTERVAL);
+  assert.equal(status(gladys).connected, false);
+  assert.match(status(gladys).message.fr, /pas de numéro de série lisible/);
+  assert.equal(last(gladys, 'power'), 1100);
+});
+
+/** A json answer of the library's shape. */
+const jsonAnswer = ({ sn = '', model = 'omnik2000tl2', rated = '2000', power = 900, today }) =>
+  text(
+    JSON.stringify({
+      i_sn: sn,
+      i_modle: model,
+      i_pow: rated,
+      i_pow_n: power,
+      i_eday: String(today),
+      i_eall: '8000.0',
+    }),
+  );
+
+test('identity (I1): a fallback id whose device is created stays when a serial appears', async () => {
+  for (const config of [
+    { address: ADDRESS, source: 'json' },
+    { address: ADDRESS, source: 'html', username: 'admin', password: 'pw' },
+  ]) {
+    const store = createMemoryStore();
+    const inverter = createInverter();
+    const answer = (sn, today) =>
+      config.source === 'json'
+        ? jsonAnswer({ sn, today })
+        : text(page({ source: 'html', serial: sn, energy: today }));
+    inverter.answer = () => answer('', 3.1);
+    const first = await setup({ inverter, store, config });
+    await first.start();
+    const [found] = first.gladys.fake.discoveredDevices;
+    const id = found.external_id.split(':').at(-1);
+    assert.match(id, config.source === 'json' ? /^host-/ : /^logger-/);
+    await first.app.stop();
+    // The user created it; a firmware now gives the serial.
+    const device = buildDevice(
+      createFakeGladys({ selector: SELECTOR }),
+      { serial: id },
+      { address: ADDRESS, source: config.source },
+    );
+    const index = device.features.find((f) => f.external_id.endsWith(':production_index'));
+    index.last_value = 1000;
+    index.last_value_changed = new Date(NOW - MINUTE).toISOString();
+    inverter.answer = () => answer(SERIAL, 3.2);
+    const again = await setup({ inverter, store, config, devices: [device], now: NOW + HOUR });
+    await again.start();
+    inverter.answer = () => answer(SERIAL, 3.5);
+    await again.wait(POLL_INTERVAL);
+    assert.equal(again.gladys.fake.lastState(F('production_index', id)), 1000.3);
+    assert.ok(again.gladys.fake.discoveredDevices.every((d) => d.external_id.endsWith(id)));
+    assert.equal(again.gladys.fake.lastState(F('power', SERIAL)), undefined);
+    assert.equal(store.data.serial, id, '/data keeps the fallback');
+  }
+});
+
+test('identity (M1): a host- id refuses another model or rated power behind the address', async () => {
+  const store = createMemoryStore();
+  const inverter = createInverter();
+  inverter.answer = () => jsonAnswer({ today: 3.1 });
+  const { gladys, start, wait } = await setup({
+    inverter,
+    store,
+    config: { address: ADDRESS, source: 'json' },
+  });
+  await start();
+  assert.equal(store.data.signature, 'omnik2000tl2|2000');
+  inverter.answer = () => jsonAnswer({ model: 'omnik4000tl2', rated: '4000', today: 9 });
+  await wait(POLL_INTERVAL);
+  assert.equal(status(gladys).connected, false);
+  assert.match(status(gladys).message.fr, /autre modèle/);
+  inverter.answer = () => jsonAnswer({ today: 3.2 });
+  await wait(2 * POLL_INTERVAL);
+  assert.equal(status(gladys).connected, true);
+});
+
+test('the night (I3): a serial with empty values, or 4294967295, is asleep', async () => {
+  const day = {
+    js: () => text(page({ power: 20, energy: 5 })),
+    json: () => jsonAnswer({ sn: SERIAL, power: 20, today: 5 }),
+  };
+  for (const [source, night] of [
+    ['js', () => text('var webData="NLDN2020123456,V5,V4,omnik3000tl,3000,,,153637,,1,";')],
+    [
+      'js',
+      () => text('var webData="NLDN2020123456,V5,V4,omnik3000tl,3000,4294967295,4294967295,,,1,";'),
+    ],
+    ['json', () => jsonAnswer({ sn: SERIAL, power: '', today: '' })],
+    ['json', () => jsonAnswer({ sn: SERIAL, power: 4294967295, today: '4294967295' })],
+  ]) {
+    const inverter = createInverter();
+    inverter.answer = day[source];
+    const { gladys, start, wait } = await setup({
+      inverter,
+      devices: [created({ index: { value: 1000, at: NOW - MINUTE } })],
+      config: { address: ADDRESS, source },
+    });
+    await start();
+    assert.equal(last(gladys, 'power'), 20);
+    inverter.answer = night;
+    await wait(MINUTE);
+    assert.equal(last(gladys, 'power'), 0);
+    assert.equal(last(gladys, 'awake'), 0);
+    assert.equal(status(gladys).connected, true);
+    assert.match(status(gladys).message.fr, /en veille/);
+    // The night pace: one read every 5 minutes.
+    const before = reads(inverter);
+    await wait(SLEEP_INTERVAL - 1);
+    assert.equal(reads(inverter), before);
+    await wait(1);
+    assert.equal(reads(inverter), before + 1);
+    assert.equal(last(gladys, 'production_index'), 1000, 'the index never 0 nor dropped');
+  }
 });

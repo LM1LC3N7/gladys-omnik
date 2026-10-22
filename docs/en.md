@@ -31,8 +31,14 @@ lifetime counter of the inverter is not published (see "The energy index").
    inverter sleeps and does not answer), choose the source, and save:
    - **js** (default): the page `/js/status.js`, given by most loggers;
    - **json**: the page `/status.json`; some loggers give no serial number in
-     it (the device is then named after a fingerprint of the address: a new
-     address makes a new device; prefer js if it works);
+     it. The device is then named after a fingerprint of the address, so a
+     **fixed address in your router is required**: a new address makes a new
+     device, and changing the source may too. The model and rated power of
+     the answer are kept: an answer with others (another inverter behind the
+     address) turns the status red and writes nothing. Prefer js if it works;
+   - a device created under such a fingerprint (or under the logger's, html
+     and tcp without serial) keeps it, even when a serial number appears
+     later (a firmware update): never a second device;
    - **html**: the page `/status.html`, which always needs the user name and
      password of the logger's web page (often admin);
    - **tcp**: port 8899, which needs the serial number of the Wi-Fi logger
@@ -71,7 +77,8 @@ password.
 
 An Omnik inverter is powered by its panels: at sunset it stops, and its Wi-Fi
 logger either answers without production or goes silent. That is not an
-error: after three silent reads (or at once when the logger says so), the
+error: after three silent reads (or at once when the logger says so: no power
+nor counter of the day, empty or written 4294967295, even with its serial), the
 inverter is "asleep", its power goes to 0, the status stays green and says so,
 and it is read every 5 minutes until it wakes up. The status turns red if the
 inverter vanishes (or its logger answers without it) while producing 50 W or

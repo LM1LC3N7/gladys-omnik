@@ -22,7 +22,8 @@
 // - `power` is the only energy-production-sensor / power feature;
 // - units: only the ones the core lists for the category
 //   (DEVICE_FEATURE_UNITS_BY_CATEGORY): W and kWh for energy-production-sensor,
-//   °C for temperature-sensor, none for unknown.
+//   °C for device-temperature-sensor (the inverter's own temperature, never
+//   the room's: review 1, I2), none for unknown.
 // -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
@@ -130,7 +131,8 @@ export function buildDevice(gladys, info, { address, source }) {
         external,
         FEATURE.TEMPERATURE,
         'Inverter temperature (tcp source only)',
-        C.TEMPERATURE_SENSOR,
+        // As gladys-apsystems, gladys-imeon and gladys-indevolt.
+        C.DEVICE_TEMPERATURE_SENSOR,
         T.SENSOR.DECIMAL,
         { unit: U.CELSIUS, min: -40, max: TEMPERATURE_MAX },
       ),

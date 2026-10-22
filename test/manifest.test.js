@@ -168,13 +168,17 @@ test('the device: core units only, the index with its 30-minute production, noth
   );
   const units = {
     'energy-production-sensor': ['watt', 'kilowatt-hour'],
-    'temperature-sensor': ['celsius'],
+    'device-temperature-sensor': ['celsius'],
     unknown: [undefined],
   };
   for (const feature of device.features) {
     assert.ok(units[feature.category].includes(feature.unit), feature.external_id);
     assert.equal(feature.read_only, true);
   }
+  // The inverter's own temperature, never the room's (review 1, I2).
+  const temperature = device.features.find((f) => f.external_id.endsWith(':temperature'));
+  assert.equal(temperature.category, 'device-temperature-sensor');
+  assert.ok(!device.features.some((f) => f.category === 'temperature-sensor'));
   const index = device.features.find((f) => f.external_id.endsWith(':production_index'));
   const thirty = device.features.find((f) => f.type === 'thirty-minutes-production');
   assert.equal(index.type, 'index');

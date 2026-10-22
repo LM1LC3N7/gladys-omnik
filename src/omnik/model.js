@@ -53,9 +53,18 @@ export function boardOf(id) {
 const serialOf = (text) => (typeof text === 'string' && SERIAL.test(text) ? text : undefined);
 const textOf = (text) => (typeof text === 'string' && TEXT.test(text) ? text : undefined);
 
-/** A number as written: '' is not given (null), a wrong one is a wrong answer (NaN). */
+/** The logger's own "no value" (its status page shows it as ---): review 1, I3. */
+const NO_VALUE = 4294967295;
+
+/**
+ * A number as written: '' or the logger's 4294967295 is not given (null), a
+ * wrong one (a bad text, an object, an array) is a wrong answer (NaN).
+ */
 function numberOf(raw, pattern = DECIMAL) {
   if (raw === undefined || raw === null || raw === '') {
+    return null;
+  }
+  if (raw === NO_VALUE || raw === String(NO_VALUE)) {
     return null;
   }
   if (typeof raw === 'number') {
@@ -76,6 +85,12 @@ function reading(values, board) {
     }
   }
   const given = (value) => (value === null ? undefined : value);
+  if (values.power === null && values.energyToday === null) {
+    // Neither a power nor a counter of the day (empty, or 4294967295), even
+    // with a serial: the night (review 1, I3).
+    return { kind: 'asleep', board };
+  }
+  const rated = values.rated === null || Number.isNaN(values.rated) ? undefined : values.rated;
   return {
     kind: 'reading',
     serial: values.serial,
@@ -85,6 +100,7 @@ function reading(values, board) {
     energyToday: given(values.energyToday),
     energyTotal: given(values.energyTotal),
     temperature: values.temperature,
+    rated,
     board,
   };
 }
@@ -127,6 +143,7 @@ export function parseJs(text) {
       serial: serialOf(f[0]),
       firmware: textOf(f[1]),
       model: textOf(f[3]),
+      rated: numberOf(f[4], INTEGER),
       power: numberOf(f[5], INTEGER),
       // 0.01 kWh and 0.1 kWh, as the library divides them.
       energyToday: scaled(numberOf(f[6]), 100),
@@ -151,12 +168,10 @@ export function parseJson(text) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return undefined;
   }
-  // Own keys only: nothing read through the prototype.
-  const get = (key) => {
-    if (!Object.hasOwn(data, key)) return undefined;
-    const value = data[key];
-    return typeof value === 'string' || typeof value === 'number' ? value : undefined;
-  };
+  // Own keys only: nothing read through the prototype. A value that is
+  // neither a text nor a number (an object, an array, a boolean) is kept as
+  // it is: a wrong answer for a number (review 1, M3), no text.
+  const get = (key) => (Object.hasOwn(data, key) ? data[key] : undefined);
   if (get('i_eday') === undefined && get('i_eall') === undefined) {
     return undefined;
   }
@@ -173,6 +188,7 @@ export function parseJson(text) {
       serial: serialOf(typeof serial === 'string' ? serial.trim() : undefined),
       firmware: textOf(get('i_ver_m')),
       model: textOf(get('i_modle')),
+      rated: numberOf(get('i_pow'), INTEGER),
       power: numberOf(get('i_pow_n'), INTEGER),
       energyToday: today,
       energyTotal: total,
@@ -207,6 +223,7 @@ export function parseHtml(text) {
     v[key] = value;
   }
   const board = boardOf(quoted(data, 'cover_mid="'));
+  const rated = quoted(data, 'webdata_rate_p="');
   if (v.webdata_sn === '' && v.webdata_now_p === '' && v.webdata_today_e === '') {
     return { kind: 'asleep', board };
   }
@@ -215,6 +232,7 @@ export function parseHtml(text) {
       serial: serialOf(v.webdata_sn),
       firmware: textOf(v.webdata_msvn),
       model: textOf(v.webdata_pv_type),
+      rated: numberOf(rated, INTEGER),
       power: numberOf(v.webdata_now_p, INTEGER),
       energyToday: numberOf(v.webdata_today_e),
       energyTotal: numberOf(v.webdata_total_e),

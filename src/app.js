@@ -248,8 +248,18 @@ const addressId = (address) =>
  *    (html `cover_mid`, the logger serial of a tcp reply);
  * 4. else `host-<fingerprint>` of the address typed (a json answer without
  *    `i_sn`): a new address is then a new device.
+ * 0. Before all (review 1, I1): a fallback id whose device the user created
+ *    (`keepFallback`) stays the id while the logger (`logger-`) or the
+ *    address (`host-`) is the same, even once a serial appears: never a
+ *    second device for the same inverter.
  */
-export function identityOf(reading, known, address) {
+export function identityOf(reading, known, address, keepFallback = false) {
+  if (keepFallback && known && FALLBACK_ID.test(known)) {
+    const same = known.startsWith('logger-')
+      ? Boolean(reading.board) && known === `logger-${reading.board}`
+      : known === addressId(address);
+    if (same) return known;
+  }
   if (reading.serial) {
     return reading.serial;
   }
@@ -257,6 +267,18 @@ export function identityOf(reading, known, address) {
     return undefined;
   }
   return reading.board ? `logger-${reading.board}` : addressId(address);
+}
+
+const SIGNATURE = /^[A-Za-z0-9._()+:-]{1,48}\|\d{1,9}$/;
+
+/**
+ * What tells one inverter from another without a serial (the json source
+ * without `i_sn`, review 1 M1): its model and rated power, when both are given.
+ */
+export function signatureOf(reading) {
+  return reading.model && Number.isInteger(reading.rated)
+    ? `${reading.model}|${reading.rated}`
+    : undefined;
 }
 
 /** A refusal of the credentials read back from /data: `{ fp }` (a salted fingerprint), else undefined. */
@@ -367,6 +389,9 @@ export class OmnikApp {
             ...(typeof kept.board === 'string' && /^[0-9a-f]{12}$/.test(kept.board)
               ? { board: kept.board }
               : {}),
+            ...(typeof kept.signature === 'string' && SIGNATURE.test(kept.signature)
+              ? { signature: kept.signature }
+              : {}),
           }
         : undefined;
     /** The daily power peaks, for the margin of the index (I3). */
@@ -406,6 +431,8 @@ export class OmnikApp {
     this.failures = 0;
     this.nextTryAt = undefined;
     this.lastError = undefined;
+    /** Monotonic time of the first of the answers without serial in a row (M2). */
+    this.serialMissingSince = undefined;
     this.noIndex = false;
     this.stale = false;
     this.otherInverter = undefined;
@@ -643,11 +670,34 @@ export class OmnikApp {
     // The identity of this read: the serial in the same answer as its values.
     const serial =
       reading.kind === 'reading'
-        ? identityOf(reading, this.info?.serial, this.config.address)
+        ? identityOf(reading, this.info?.serial, this.config.address, Boolean(this.createdDevice()))
         : undefined;
     if (reading.kind === 'reading' && serial === undefined) {
       // A serial unreadable once is never "another inverter": nothing written.
+      // A logger that omits it now and then (review 1, M2): the read is
+      // ignored, without red nor a longer wait; only an hour of it is red.
+      this.serialMissingSince ??= mono;
+      if (mono - this.serialMissingSince < ASLEEP_AFTER) {
+        this.logger.warn('Omnik: an answer without serial number, ignored');
+        await this.updateStatus();
+        return;
+      }
       await this.failed(new OmnikError('no_serial'), mono, gone);
+      return;
+    }
+    this.serialMissingSince = undefined;
+    // The json source without serial (`host-` id): the model and rated power
+    // told by the answer must stay the same (review 1, M1); another inverter
+    // behind the address (a DHCP swap) is red and writes nothing.
+    const signature = reading.kind === 'reading' ? signatureOf(reading) : undefined;
+    if (
+      serial?.startsWith('host-') &&
+      signature &&
+      this.info?.serial === serial &&
+      this.info.signature &&
+      this.info.signature !== signature
+    ) {
+      await this.failed(new OmnikError('other_model'), mono, gone);
       return;
     }
     this.failures = 0;
@@ -675,11 +725,15 @@ export class OmnikApp {
     if (power !== undefined) {
       this.lastPower = power;
     }
+    const kept = this.info?.serial === serial ? this.info.signature : undefined;
     const info = {
       serial,
       model: reading.model,
       firmware: reading.firmware,
       ...(reading.board ? { board: reading.board } : {}),
+      ...(serial.startsWith('host-') && (signature ?? kept)
+        ? { signature: signature ?? kept }
+        : {}),
     };
     const previous = this.info?.serial;
     if (previous !== undefined && previous !== info.serial) {
@@ -832,6 +886,7 @@ export class OmnikApp {
       }
       const extra = [];
       if (this.otherInverter) extra.push(T.notes.otherInverter(this.otherInverter));
+      if (this.serialMissingSince !== undefined) extra.push(T.notes.noSerial);
       if (this.stale) extra.push(T.notes.stale);
       if (this.noIndex) extra.push(T.notes.noIndex);
       return [true, T.ok(address, [...extra, ...notes])];
@@ -867,6 +922,7 @@ export class OmnikApp {
     const state = {
       serial: this.info?.serial ?? null,
       board: this.info?.board ?? null,
+      signature: this.info?.signature ?? null,
       peaks: this.peaks,
       pause: this.pause ?? null,
       // Only a refused set's salted fingerprint, never a working one's.

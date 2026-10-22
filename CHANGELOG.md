@@ -21,8 +21,14 @@ the notes of the version's GitHub Release.
   button, Discover tab, restart: the time of the last read is kept in
   `/data`).
 - One device per inverter (`inverter:<serial>`; a fingerprint of the logger
-  or of the address when the answer has no serial): solar power, energy of
-  the day, inverter awake, temperature (tcp source).
+  or of the address when the answer has no serial, kept once its device is
+  created even if a serial appears later): solar power, energy of the day,
+  inverter awake, inverter temperature (tcp source, as a device temperature,
+  never the room's). Without a serial (json), a fixed address is required and
+  an answer with another model or rated power is refused; an answer missing
+  its serial now and then is ignored, red only after an hour.
+- The night also when the logger answers with its serial but without power
+  nor counter of the day (empty, or its "no value" 4294967295).
 - A solar production index for the Gladys energy monitoring, built from the
   counter of the day with the mechanism of gladys-zeversolar 0.1.4 (the
   inverter asleep at night, the counter of the day before shown again kept

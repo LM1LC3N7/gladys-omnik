@@ -26,6 +26,7 @@ test('js: the three layouts of the library', () => {
     energyToday: 0.3,
     energyTotal: 15363.7,
     temperature: undefined,
+    rated: 4000,
     board: undefined,
   });
   const array = parseJs(LIBRARY.devicearrayJs);
@@ -51,6 +52,7 @@ test('json: the library fixture; day equal to total is the night', () => {
     energyToday: 10.9,
     energyTotal: 8674,
     temperature: undefined,
+    rated: 2000,
     board: undefined,
   });
   assert.deepEqual(parseJson(LIBRARY.wrongStatusJson), { kind: 'asleep', board: undefined });
@@ -176,4 +178,32 @@ test('a huge answer is parsed in linear time', () => {
   assert.equal(parseJs(big), undefined);
   assert.equal(parseHtml(`webdata_sn="${' '.repeat(30_000)}`), undefined);
   assert.ok(performance.now() - start < 500);
+});
+
+test('review 1, I3: 4294967295 is "no value"; no power nor counter of the day is the night', () => {
+  const js = 'var webData="12345678910,a,b,omnik4000tl2,4000,4294967295,4294967295,153637,F13,0,";';
+  assert.deepEqual(parseJs(js), { kind: 'asleep', board: undefined });
+  assert.deepEqual(parseJs('var webData="12345678910,a,b,omnik4000tl2,4000,,,153637,,0,";'), {
+    kind: 'asleep',
+    board: undefined,
+  });
+  const json = (eday, pow) =>
+    parseJson(JSON.stringify({ i_sn: 'NLDN1', i_pow_n: pow, i_eday: eday, i_eall: '8000.0' }));
+  assert.equal(json('', '').kind, 'asleep');
+  assert.equal(json('4294967295', 4294967295).kind, 'asleep');
+  const html = parseHtml(LIBRARY.statusHtml.replace('"219"', '""').replace('"0.23"', '""'));
+  assert.equal(html.kind, 'asleep');
+  assert.equal(html.board, boardOf('902000501'));
+  // A power without the counter (or the reverse) is still a reading.
+  assert.equal(json('3.1', '').kind, 'reading');
+  assert.equal(json('', 900).kind, 'reading');
+});
+
+test('review 1, M3: a json value that is an object or an array is a wrong answer', () => {
+  for (const value of [{ x: 1 }, [1], true]) {
+    const body = { i_sn: '', i_pow_n: 900, i_eday: '3.1', i_eall: '8000.0' };
+    for (const key of ['i_eday', 'i_pow_n', 'i_eall']) {
+      assert.equal(parseJson(JSON.stringify({ ...body, [key]: value })), undefined, key);
+    }
+  }
 });

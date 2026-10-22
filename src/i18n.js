@@ -37,6 +37,10 @@ const REASON = {
     en: 'the answer has no readable serial number, values not written',
     fr: 'la réponse n’a pas de numéro de série lisible, valeurs non écrites',
   },
+  other_model: {
+    en: 'the answer gives another model or rated power than the device, values not written (another inverter at this address?)',
+    fr: 'la réponse donne un autre modèle ou une autre puissance nominale que l’appareil, valeurs non écrites (un autre onduleur à cette adresse ?)',
+  },
   no_inverter: {
     en: 'the Wi-Fi logger answers without its inverter, right after it produced',
     fr: 'l’enregistreur Wi-Fi répond sans son onduleur, juste après qu’il a produit',
@@ -161,6 +165,10 @@ export const T = {
     stale: {
       en: 'The inverter still shows the counter of the day before: no production index until it starts the new day.',
       fr: 'L’onduleur affiche encore le compteur de la veille : pas d’index de production tant qu’il n’a pas commencé le nouveau jour.',
+    },
+    noSerial: {
+      en: 'The last answer had no serial number: ignored (red if it lasts an hour).',
+      fr: 'La dernière réponse n’avait pas de numéro de série : ignorée (rouge si cela dure une heure).',
     },
     otherInverter: (serial) => ({
       en: `Another inverter answers at this address (serial ${serial}): its values go to its own device, never to the previous one.`,

@@ -33,9 +33,17 @@ compteur total de l'onduleur n'est pas publié (voir « L'index d'énergie »).
    - **js** (par défaut) : la page `/js/status.js`, donnée par la plupart des
      enregistreurs ;
    - **json** : la page `/status.json` ; certains enregistreurs n'y donnent pas
-     de numéro de série (l'appareil est alors nommé d'après une empreinte de
-     l'adresse : une nouvelle adresse fait un nouvel appareil ; préférez js
-     s'il fonctionne) ;
+     de numéro de série. L'appareil est alors nommé d'après une empreinte de
+     l'adresse : une **adresse fixe dans votre box est obligatoire** (une
+     nouvelle adresse fait un nouvel appareil, et changer de source peut en
+     faire un aussi). Le modèle et la puissance nominale de la réponse sont
+     gardés : une réponse qui en donne d'autres (un autre onduleur derrière
+     l'adresse) passe l'état au rouge et n'écrit rien. Préférez js s'il
+     fonctionne ;
+   - un appareil créé sous une telle empreinte (ou sous celle de
+     l'enregistreur, html et tcp sans numéro de série) la garde, même si un
+     numéro de série apparaît plus tard (mise à jour du firmware) : jamais de
+     second appareil ;
    - **html** : la page `/status.html`, qui demande toujours le nom
      d'utilisateur et le mot de passe de la page web de l'enregistreur
      (souvent admin) ;
@@ -80,7 +88,8 @@ passe.
 Un onduleur Omnik est alimenté par ses panneaux : au coucher du soleil il
 s'arrête, et son enregistreur Wi-Fi répond sans production ou se tait. Ce
 n'est pas une erreur : après trois lectures sans réponse (ou tout de suite
-quand l'enregistreur le dit), l'onduleur est « en veille », sa puissance passe
+quand l'enregistreur le dit : ni puissance ni compteur du jour, vides ou écrits
+4294967295, même avec son numéro de série), l'onduleur est « en veille », sa puissance passe
 à 0, l'état reste vert et le dit, et il est lu toutes les 5 minutes jusqu'à
 son réveil. L'état passe au rouge si l'onduleur disparaît (ou si son
 enregistreur répond sans lui) en produisant 50 W ou plus, si un autre

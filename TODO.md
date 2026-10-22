@@ -19,13 +19,18 @@
       inverter), answer with empty fields (read as "asleep"), or keep the last
       values (the power then stays at its last value; the counter of the day,
       unchanged, moves nothing, and after our midnight it is kept out as "the
-      day before" by `keptOut`)?
+      day before" by `keptOut`)? Review 1, M4: a logger frozen on its last
+      values all night shows its last power and "awake" 1 until it goes
+      silent (the index stays right); nothing tells it from a real reading,
+      so it stays as it is until seen on a real logger. Empty values and
+      4294967295 (with the serial or not) are "asleep" since review 1, I3.
 - [ ] The counter of the day: back to 0 at sunrise (or at the inverter's
       midnight)? Shown again from the day before when the inverter wakes up?
       Reset by a reboot during the day?
 - [ ] The json source without `i_sn` (the library's fixture): the device is
-      `host-<fingerprint of the address>`; a new address is a new device.
-      Does any json firmware give `i_sn`?
+      `host-<fingerprint of the address>`; a new address is a new device (a
+      fixed address is required, said in the docs; review 1, M1). Does any
+      json firmware give `i_sn`?
 - [ ] The json "day equal to total" answer (the library refuses it) is read as
       "asleep": seen at night only?
 - [ ] Which loggers ask for Basic auth on js and json (the library sends it
@@ -78,12 +83,19 @@
 - **External id** (forever, see `identityOf` in src/app.js):
   `inverter:<serial>` (the serial of the answer, checked
   `[A-Za-z0-9_-]{4,40}`), one inverter per integration; else, when the device
-  known so far has a real serial, the reading is refused (`no_serial`, red,
-  nothing written: a serial unreadable once is never "another inverter");
-  else `inverter:logger-<12 hex>` (the fingerprint of the logger's id: html
-  `cover_mid`, the tcp reply's logger serial); else
+  known so far has a real serial, the reading is ignored (nothing written: a
+  serial unreadable once is never "another inverter"; review 1, M2: no red
+  and no longer wait, a note in the status; red `no_serial` only after an
+  hour of it); else `inverter:logger-<12 hex>` (the fingerprint of the
+  logger's id: html `cover_mid`, the tcp reply's logger serial); else
   `inverter:host-<12 hex>` (a fingerprint of the address: the json source
-  without `i_sn`; a new address is then a new device, documented). The serial
+  without `i_sn`; a new address is then a new device, a fixed address
+  required, documented; review 1, M1: the model and rated power `i_modle |
+i_pow` are kept in `/data` as `signature`, an answer with others is red
+  `other_model` and writes nothing). Review 1, I1: a fallback id whose device
+  is created stays the id while the logger (`logger-`) or the address
+  (`host-`) is the same, even once a serial appears (a firmware update, a
+  first partial answer): never a second device, the rule is fixed. The serial
   is in the same answer as the values: a DHCP swap or another inverter at the
   address never writes into the old device. The id is kept in `/data` so
   that the created device is offered at a restart by night.
@@ -127,8 +139,16 @@
 - **States**: `publishChangedStates` with a 10-minute heartbeat: at most 5
   states a minute, far below the 300 states a minute of Gladys. No scene
   event (`publishSceneEvent` is never called).
-- **Units**: W and kWh (energy-production-sensor), °C (temperature-sensor),
-  none for the awake flag: all in `DEVICE_FEATURE_UNITS_BY_CATEGORY`.
+- **Units**: W and kWh (energy-production-sensor), °C
+  (device-temperature-sensor: the inverter's own temperature, never the
+  room's, as gladys-apsystems / imeon / indevolt; review 1, I2, fixed before
+  the first release), none for the awake flag: all in
+  `DEVICE_FEATURE_UNITS_BY_CATEGORY`.
+- **The logger's "no value"** (review 1, I3): 4294967295 (text or number,
+  shown as `---` by the logger's own page) is "not given"; an answer with
+  neither a power nor a counter of the day is "asleep" (0 W, awake 0, the
+  night pace, green), serial or not. A json value that is neither a text nor
+  a number is a wrong answer (M3), as the library fails on it.
 - **No custom User-Agent**, no imitation: Node's own fetch and sockets.
 - **Gladys version**: `>=5.2.0`, like the other energy integrations.
 
