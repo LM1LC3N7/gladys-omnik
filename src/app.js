@@ -557,9 +557,12 @@ export class OmnikApp {
 
   // --- Pace ------------------------------------------------------------------
 
-  /** The monotonic time from which the next read may start. */
-  dueAt() {
-    const mono = this.monotonic();
+  /**
+   * The monotonic time from which the next read may start, from the caller's
+   * instant `mono`: the clock is read once per decision, never again here (or
+   * no read would ever be due).
+   */
+  dueAt(mono) {
     let due =
       this.lastReadAt === undefined
         ? mono
@@ -584,7 +587,8 @@ export class OmnikApp {
       // Refused credentials: never an automatic read (only the test button).
       return;
     }
-    const wait = Math.max(0, this.dueAt() - this.monotonic());
+    const mono = this.monotonic();
+    const wait = Math.max(0, this.dueAt(mono) - mono);
     this.timer = this.timers.setTimeout(() => {
       this.timer = undefined;
       this.loopRun = this.loop();
@@ -625,7 +629,7 @@ export class OmnikApp {
       return;
     }
     const mono = this.monotonic();
-    if (mono < this.dueAt()) {
+    if (mono < this.dueAt(mono)) {
       return;
     }
     /** Another address (or a stop) during an await: this read gives up, silently. */
@@ -1282,14 +1286,16 @@ export class OmnikApp {
       delete this.info.signature;
       this.logger.info('Omnik: the rated power of the inverter will be learned again');
       await this.saveState();
-      if (this.busy || this.dueAt() > this.monotonic()) {
-        return T.test.relearn(Math.max(0, this.dueAt() - this.monotonic()));
+      const mono = this.monotonic();
+      if (this.busy || this.dueAt(mono) > mono) {
+        return T.test.relearn(Math.max(0, this.dueAt(mono) - mono));
       }
     }
     const refused = this.refusedNow();
-    if (this.busy || this.dueAt() > this.monotonic()) {
+    const mono = this.monotonic();
+    if (this.busy || this.dueAt(mono) > mono) {
       return refused
-        ? T.test.refusedWait(Math.max(0, this.dueAt() - this.monotonic()))
+        ? T.test.refusedWait(Math.max(0, this.dueAt(mono) - mono))
         : this.describeOutcome();
     }
     let timer;
@@ -1310,7 +1316,7 @@ export class OmnikApp {
   /** The last read in words, and the time to the next one. */
   describeOutcome() {
     const mono = this.monotonic();
-    const next = Math.max(0, this.dueAt() - mono);
+    const next = Math.max(0, this.dueAt(mono) - mono);
     const outcome = this.outcome;
     if (!outcome) {
       return T.test.notYet(next);

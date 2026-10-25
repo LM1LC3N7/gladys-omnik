@@ -170,10 +170,13 @@ test('M2: the counter of the day before kept out is not published as the energy 
     t > days[1].a && t < days[1].a + 20 * MINUTE
       ? { power: 20, energy: printed(final(days[0])) }
       : base(t);
-  const { gladys } = await replay({ days, world, from: P(0, 10), until: P(1, 8, 10) });
-  const stale = gladys.fake.states.filter(
-    (s) => s.device_feature_external_id === F('energy_today') && s.state === final(days[0]),
-  );
+  const { gladys, statesFrom } = await replay({ days, world, from: P(0, 10), until: P(1, 8, 10) });
+  // From the night before day 1: the last read of day 0 may show its whole counter.
+  const stale = gladys.fake.states
+    .slice(statesFrom(P(1, 0)))
+    .filter(
+      (s) => s.device_feature_external_id === F('energy_today') && s.state === final(days[0]),
+    );
   assert.equal(stale.length, 0, 'never the day before in the energy of the day');
 });
 

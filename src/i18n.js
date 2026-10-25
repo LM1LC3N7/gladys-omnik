@@ -9,7 +9,8 @@ const minutes = (ms) => Math.max(1, Math.round(ms / 60_000));
 const hours = (ms) => Math.max(1, Math.round(ms / 3_600_000));
 export const delay = (ms) => {
   if (ms >= 2 * 3_600_000) return { en: `${hours(ms)} h`, fr: `${hours(ms)} h` };
-  if (ms >= 60_000) return { en: `${minutes(ms)} min`, fr: `${minutes(ms)} min` };
+  // Rounded first: 59.99 s is told "1 min", never "60 s".
+  if (Math.round(ms / 1000) >= 60) return { en: `${minutes(ms)} min`, fr: `${minutes(ms)} min` };
   return { en: `${seconds(ms)} s`, fr: `${seconds(ms)} s` };
 };
 
@@ -206,21 +207,21 @@ export const T = {
   test: {
     /** The outcome of a read, `ago` ms ago (0: just now), the next one in `next` ms. */
     reading: ({ serial, model, power }, ago, next) => ({
-      en: `${ago > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: Omnik inverter ${serial}${model ? ` (${model})` : ''}, ${power} W.${next > 0 ? ` Next read in ${delay(next).en}.` : ''}`,
-      fr: `${ago > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : onduleur Omnik ${serial}${model ? ` (${model})` : ''}, ${power} W.${next > 0 ? ` Prochaine lecture dans ${delay(next).fr}.` : ''}`,
+      en: `${Math.round(ago / 1000) > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: Omnik inverter ${serial}${model ? ` (${model})` : ''}, ${power} W.${next > 0 ? ` Next read in ${delay(next).en}.` : ''}`,
+      fr: `${Math.round(ago / 1000) > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : onduleur Omnik ${serial}${model ? ` (${model})` : ''}, ${power} W.${next > 0 ? ` Prochaine lecture dans ${delay(next).fr}.` : ''}`,
     }),
     asleep: (ago, next) => ({
-      en: `${ago > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: the Wi-Fi logger of the inverter answers, the inverter is asleep (no sun).${next > 0 ? ` Next read in ${delay(next).en}.` : ''}`,
-      fr: `${ago > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : l’enregistreur Wi-Fi de l’onduleur répond, l’onduleur est en veille (pas de soleil).${next > 0 ? ` Prochaine lecture dans ${delay(next).fr}.` : ''}`,
+      en: `${Math.round(ago / 1000) > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: the Wi-Fi logger of the inverter answers, the inverter is asleep (no sun).${next > 0 ? ` Next read in ${delay(next).en}.` : ''}`,
+      fr: `${Math.round(ago / 1000) > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : l’enregistreur Wi-Fi de l’onduleur répond, l’onduleur est en veille (pas de soleil).${next > 0 ? ` Prochaine lecture dans ${delay(next).fr}.` : ''}`,
     }),
     failed: (address, err, ago, next) => ({
-      en: `${ago > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: the inverter at ${address} could not be read (${reason(err).en}). Next read in ${delay(next).en}.`,
-      fr: `${ago > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : l’onduleur à l’adresse ${address} n’a pas pu être lu (${reason(err).fr}). Prochaine lecture dans ${delay(next).fr}.`,
+      en: `${Math.round(ago / 1000) > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: the inverter at ${address} could not be read (${reason(err).en}). Next read in ${delay(next).en}.`,
+      fr: `${Math.round(ago / 1000) > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : l’onduleur à l’adresse ${address} n’a pas pu être lu (${reason(err).fr}). Prochaine lecture dans ${delay(next).fr}.`,
     }),
     /** Credentials refused: no automatic read; the next click may try once. */
     refused: (address, ago) => ({
-      en: `${ago > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: the logger at ${address} refuses the user name or the password. No automatic read until they change; this button tries again once a minute at most.`,
-      fr: `${ago > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : l’enregistreur à l’adresse ${address} refuse le nom d’utilisateur ou le mot de passe. Aucune lecture automatique tant qu’ils ne changent pas ; ce bouton réessaie au plus une fois par minute.`,
+      en: `${Math.round(ago / 1000) > 0 ? `Last read ${delay(ago).en} ago` : 'Read now'}: the logger at ${address} refuses the user name or the password. No automatic read until they change; this button tries again once a minute at most.`,
+      fr: `${Math.round(ago / 1000) > 0 ? `Dernière lecture il y a ${delay(ago).fr}` : 'Lu à l’instant'} : l’enregistreur à l’adresse ${address} refuse le nom d’utilisateur ou le mot de passe. Aucune lecture automatique tant qu’ils ne changent pas ; ce bouton réessaie au plus une fois par minute.`,
     }),
     refusedWait: (next) => ({
       en: `The logger refused the user name or the password: this button can try again in ${delay(next).en} (never more than one read a minute).`,

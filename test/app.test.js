@@ -76,12 +76,15 @@ async function setup({
   const gladys = createFakeGladys({ selector: SELECTOR, config, devices });
   await gladys.connect();
   const { clock, timers, advance } = createFakeClock(now);
+  let drift = 0;
   const logger = createLogger();
   const app = new OmnikApp({
     gladys,
     logger,
     now: () => clock.now,
-    monotonic: () => clock.now,
+    // A real monotonic clock moves between two reads of it: 1 µs per call
+    // here, so that a decision reading the clock twice is caught.
+    monotonic: () => clock.now + (drift += 0.001),
     timers,
     store,
     clientFactory: (options) => new OmnikClient({ ...options, fetchImpl: inverter.net.fetch }),
@@ -223,13 +226,15 @@ test('sunrise with the counter of the day before: no index until the new day sta
   await wait(SLEEP_INTERVAL);
   assert.equal(app.stale, true);
   assert.match(status(gladys).message.fr, /compteur de la veille/);
-  // Its new day: 0.1, then 1.1 kWh: counted from the new day only.
+  // Its new day: 0.1, then 1.0 kWh: counted from the new day only. A rise of
+  // 0.9 kWh in a minute stays under the margin (30 kW and 0.5 kWh of slack:
+  // 1 kWh), whatever microseconds the test clock drifts.
   inverter.set({ power: 50, energy: '0.10' });
   await wait(MINUTE);
   assert.equal(last(gladys, 'production_index'), 500);
-  inverter.set({ power: 900, energy: '1.10' });
+  inverter.set({ power: 900, energy: '1.00' });
   await wait(10 * MINUTE);
-  assert.equal(last(gladys, 'production_index'), 501);
+  assert.equal(last(gladys, 'production_index'), 500.9);
 });
 
 test('an inverter that vanishes while producing: red at once, then asleep after an hour', async () => {
@@ -334,7 +339,8 @@ test('the pace: a reconnection, a save, a scan, the buttons, a creation never re
   await wait(50_000);
   assert.equal(reads(inverter), 2);
   // A restart of the container: the time of the last read is in /data.
-  assert.equal(store.data.lastAttemptAt, clock.now);
+  // The test clock drifts by microseconds per read of the monotonic clock.
+  assert.ok(Math.abs(store.data.lastAttemptAt - clock.now) < 1, 'the attempt is saved');
   const other = createInverter();
   const again = await setup({ store, now: clock.now + 20_000, inverter: other });
   await again.start();
