@@ -167,12 +167,9 @@ export async function replay({
   });
   await s.start();
   const restarts = [...restartAt];
-  /** Every 10 minutes: the states published so far (of the app running then). */
-  const marks = [];
   while (s.clock.now < until) {
     const step = Math.min(10 * MINUTE, until - s.clock.now);
     await s.wait(step);
-    marks.push({ at: s.clock.now, gladys: s.gladys, count: s.gladys.fake.states.length });
     core.collect(s.gladys);
     if (restarts.length > 0 && s.clock.now >= restarts[0]) {
       restarts.shift();
@@ -189,11 +186,6 @@ export async function replay({
       core.collect(s.gladys);
     }
   }
-  /** The states of the last app published from `t` on (`gladys.fake.states.slice(statesFrom(t))`). */
-  const statesFrom = (t) => {
-    const mark = marks.find((m) => m.at >= t);
-    return mark?.gladys === s.gladys ? mark.count : 0;
-  };
   return {
     counted: Math.round(core.counted * 1000) / 1000,
     real: Math.round(realBetween(days, from, until) * 1000) / 1000,
@@ -201,6 +193,5 @@ export async function replay({
     gladys: s.gladys,
     store,
     core,
-    statesFrom,
   };
 }
